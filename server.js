@@ -21,9 +21,13 @@ app.use("/api/auth", authRoutes);
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
+    console.log('✅ Connected to MongoDB successfully');
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () =>
-      console.log(`Server started on port ${PORT}`)
+      console.log(`🚀 Server started on port ${PORT}`)
     );
   })
-  .catch((err) => console.error(err)); 
+  .catch((err) => {
+    console.error('❌ MongoDB connection error:', err.message);
+    process.exit(1);
+  }); 
