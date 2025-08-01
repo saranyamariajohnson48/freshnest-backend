@@ -6,11 +6,19 @@ const {
   msg, 
   getAllUsers, 
   getRetailers, 
-  getRegularUsers
+  getRegularUsers,
+  verifyOTP,
+  resendOTP,
+  forgotPassword,
+  resetPassword
 } = require("../controllers/authController");
 
 router.post("/signup", signup);
 router.post("/login", login);
+router.post("/verify-otp", verifyOTP);
+router.post("/resend-otp", resendOTP);
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
 router.get("/msg", msg);
 
 // Admin routes

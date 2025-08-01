@@ -23,6 +23,22 @@ const userSchema = new mongoose.Schema({
     enum:["retailer","user","admin"],
     default:"user",
   },
+  isEmailVerified: {
+    type: Boolean,
+    default: false,
+  },
+  otp: {
+    type: String,
+  },
+  otpExpires: {
+    type: Date,
+  },
+  resetPasswordToken: {
+    type: String,
+  },
+  resetPasswordExpires: {
+    type: Date,
+  },
 }, {
   timestamps: true
 });
