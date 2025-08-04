@@ -431,3 +431,97 @@ exports.getProfile = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
+
+// Google Sign-in with Clerk
+exports.googleSignIn = async (req, res) => {
+  try {
+    const { email, fullName, firstName, lastName, profileImage, clerkId, provider } = req.body;
+
+    console.log("Google sign-in request:", { email, fullName, clerkId, provider });
+
+    if (!email || !clerkId) {
+      return res.status(400).json({ error: "Email and Clerk ID are required" });
+    }
+
+    // Check if user already exists
+    let user = await User.findOne({ 
+      $or: [
+        { email: email },
+        { clerkId: clerkId }
+      ]
+    });
+
+    if (user) {
+      // Handle account linking - update existing user with Google info
+      let updated = false;
+      
+      if (!user.clerkId && clerkId) {
+        user.clerkId = clerkId;
+        updated = true;
+        console.log("Linked Clerk ID to existing account:", user.email);
+      }
+      
+      if (!user.profileImage && profileImage) {
+        user.profileImage = profileImage;
+        updated = true;
+      }
+      
+      if (!user.provider || user.provider !== 'google') {
+        user.provider = provider;
+        updated = true;
+        console.log("Updated provider to Google for existing account:", user.email);
+      }
+      
+      // Ensure email is verified for Google users
+      if (!user.isEmailVerified) {
+        user.isEmailVerified = true;
+        updated = true;
+        console.log("Marked email as verified for Google user:", user.email);
+      }
+      
+      if (updated) {
+        await user.save();
+        console.log("Successfully linked Google account to existing user:", user.email);
+      } else {
+        console.log("Existing Google user signed in:", user.email);
+      }
+    } else {
+      // Create new user
+      user = new User({
+        fullName: fullName || `${firstName || ''} ${lastName || ''}`.trim(),
+        email: email,
+        clerkId: clerkId,
+        profileImage: profileImage,
+        provider: provider,
+        role: "user", // Default role for Google sign-in users
+        isEmailVerified: true, // Google users are pre-verified
+        // No password needed for OAuth users
+      });
+
+      await user.save();
+      console.log("New Google user created:", user.email);
+    }
+
+    // Generate JWT tokens
+    const { accessToken, refreshToken } = generateTokenPair(user);
+    
+    // Update user with refresh token
+    user.refreshToken = refreshToken;
+    user.refreshTokenExpires = getTokenExpirationDate(process.env.JWT_REFRESH_EXPIRE || '7d');
+    await user.save();
+
+    // Remove sensitive data from response
+    const { password, otp, otpExpires, ...userData } = user.toObject();
+
+    res.status(200).json({
+      message: "Google sign-in successful",
+      token: accessToken,
+      refreshToken: refreshToken,
+      user: userData
+    });
+
+  } catch (err) {
+    console.error("Google sign-in error:", err);
+    res.status(500).json({ error: "Server error during Google sign-in" });
+  }
+};

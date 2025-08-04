@@ -13,7 +13,8 @@ const {
   resetPassword,
   refreshToken,
   logout,
-  getProfile
+  getProfile,
+  googleSignIn
 } = require("../controllers/authController");
 
 const { authenticateToken, adminOnly, optionalAuth } = require("../middleware/auth");
@@ -21,6 +22,7 @@ const { authenticateToken, adminOnly, optionalAuth } = require("../middleware/au
 // Public routes (no authentication required)
 router.post("/signup", signup);
 router.post("/login", login);
+router.post("/google-signin", googleSignIn);
 router.post("/verify-otp", verifyOTP);
 router.post("/resend-otp", resendOTP);
 router.post("/forgot-password", forgotPassword);

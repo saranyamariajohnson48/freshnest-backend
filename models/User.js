@@ -7,7 +7,9 @@ const userSchema = new mongoose.Schema({
   },
   phone: {
     type: String,
-    required: true,
+    required: function() {
+      return !this.clerkId && !this.provider; // Phone not required for OAuth users
+    },
   },
   email: {
     type: String,
@@ -16,7 +18,22 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: true,
+    required: function() {
+      return !this.clerkId && this.provider === 'local'; // Password not required for OAuth users
+    },
+  },
+  clerkId: {
+    type: String,
+    unique: true,
+    sparse: true, // Allows null values while maintaining uniqueness
+  },
+  profileImage: {
+    type: String,
+  },
+  provider: {
+    type: String,
+    enum: ["local", "google"],
+    default: "local",
   },
   role: {
     type: String,
