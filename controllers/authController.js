@@ -2,6 +2,12 @@ const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const { sendOTPEmail, sendPasswordResetEmail } = require("../services/emailService");
+const { 
+  generateTokenPair, 
+  verifyRefreshToken, 
+  generateSecureToken,
+  getTokenExpirationDate 
+} = require("../utils/jwt");
 
 // Generate OTP
 function generateOTP() {
@@ -58,15 +64,36 @@ exports.signup = async (req, res) => {
 exports.login = async (req, res) => {
   const { email, password } = req.body;
   try {
-    console.log("Login attempt for:", email);
+    console.log("=== LOGIN REQUEST ===");
+    console.log("Request body:", req.body);
+    console.log("Email:", email);
+    console.log("Password provided:", !!password);
+    
+    if (!email || !password) {
+      return res.status(400).json({
+        error: "Email and password are required",
+        details: { email: !email, password: !password }
+      });
+    }
+    
+    if (!email || !password) {
+      console.log("Missing credentials - Email or password not provided");
+      return res.status(400).json({ error: "Email and password are required" });
+    }
     
     const user = await User.findOne({ email });
+    console.log("User found:", !!user);
+    
     if (!user) {
+      console.log("User not found with email:", email);
       return res.status(401).json({ error: "Invalid credentials" });
     }
     
     const isPasswordValid = await bcrypt.compare(password, user.password);
+    console.log("Password valid:", isPasswordValid);
+    
     if (!isPasswordValid) {
+      console.log("Invalid password for user:", email);
       return res.status(401).json({ error: "Invalid credentials" });
     }
     
@@ -78,11 +105,38 @@ exports.login = async (req, res) => {
       });
     }
     
-    const { password: _, otp, otpExpires, ...userData } = user.toObject();
+    // Generate JWT tokens
+    let tokens;
+    try {
+      tokens = generateTokenPair(user);
+      if (!tokens || !tokens.accessToken || !tokens.refreshToken) {
+        throw new Error('Failed to generate authentication tokens');
+      }
+    } catch (tokenError) {
+      console.error('Token generation error:', tokenError);
+      return res.status(500).json({ error: 'Authentication failed' });
+    }
+    
+    // Save refresh token to database
+    try {
+      user.refreshToken = tokens.refreshToken;
+      user.refreshTokenExpires = getTokenExpirationDate(process.env.JWT_REFRESH_EXPIRE || '7d');
+      await user.save();
+    } catch (saveError) {
+      console.error('Error saving refresh token:', saveError);
+      return res.status(500).json({ error: 'Failed to complete authentication' });
+    }
+    
+    // Prepare user data (exclude sensitive fields)
+    const { password: _, otp, otpExpires, refreshToken, ...userData } = user.toObject();
+    
     res.json({ 
       message: "Login successful", 
       user: userData,
-      token: "dummy-jwt-token" // Replace with actual JWT token
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      expiresIn: tokens.expiresIn,
+      tokenType: "Bearer"
     });
   } catch (err) {
     console.error("Login error:", err);
@@ -262,6 +316,118 @@ exports.resetPassword = async (req, res) => {
     });
   } catch (err) {
     console.error("Reset password error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// Refresh Token
+exports.refreshToken = async (req, res) => {
+  const { refreshToken } = req.body;
+  
+  try {
+    console.log("=== REFRESH TOKEN REQUEST ===");
+    
+    if (!refreshToken) {
+      return res.status(401).json({ 
+        error: "Refresh token required",
+        code: "REFRESH_TOKEN_MISSING"
+      });
+    }
+
+    // Verify refresh token
+    const decoded = verifyRefreshToken(refreshToken);
+    
+    // Find user with this refresh token
+    const user = await User.findOne({
+      _id: decoded.userId,
+      refreshToken: refreshToken,
+      refreshTokenExpires: { $gt: new Date() }
+    });
+
+    if (!user) {
+      return res.status(401).json({ 
+        error: "Invalid or expired refresh token",
+        code: "REFRESH_TOKEN_INVALID"
+      });
+    }
+
+    // Generate new token pair
+    const tokens = generateTokenPair(user);
+    
+    // Update refresh token in database
+    user.refreshToken = tokens.refreshToken;
+    user.refreshTokenExpires = getTokenExpirationDate(process.env.JWT_REFRESH_EXPIRE || '7d');
+    await user.save();
+
+    res.json({
+      message: "Token refreshed successfully",
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      expiresIn: tokens.expiresIn,
+      tokenType: "Bearer"
+    });
+
+  } catch (err) {
+    console.error("Refresh token error:", err);
+    res.status(401).json({ 
+      error: "Invalid refresh token",
+      code: "REFRESH_TOKEN_INVALID"
+    });
+  }
+};
+
+// Logout
+exports.logout = async (req, res) => {
+  try {
+    console.log("=== LOGOUT REQUEST ===");
+    
+    const { refreshToken } = req.body;
+    const userId = req.user?.id;
+
+    if (userId) {
+      // Clear refresh token from database
+      await User.findByIdAndUpdate(userId, {
+        $unset: { 
+          refreshToken: 1,
+          refreshTokenExpires: 1
+        }
+      });
+    } else if (refreshToken) {
+      // If no authenticated user but refresh token provided, clear it
+      await User.findOneAndUpdate(
+        { refreshToken },
+        {
+          $unset: { 
+            refreshToken: 1,
+            refreshTokenExpires: 1
+          }
+        }
+      );
+    }
+
+    res.json({ 
+      message: "Logged out successfully",
+      success: true
+    });
+
+  } catch (err) {
+    console.error("Logout error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// Get Current User Profile
+exports.getProfile = async (req, res) => {
+  try {
+    // User is already attached to req by auth middleware
+    const { password, refreshToken, otp, otpExpires, ...userData } = req.user.toObject();
+    
+    res.json({
+      message: "Profile retrieved successfully",
+      user: userData
+    });
+  } catch (err) {
+    console.error("Get profile error:", err);
     res.status(500).json({ error: "Server error" });
   }
 };
