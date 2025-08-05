@@ -69,16 +69,26 @@ exports.login = async (req, res) => {
     console.log("Email:", email);
     console.log("Password provided:", !!password);
     
+    // Validate input
     if (!email || !password) {
+      console.log("Missing credentials - Email or password not provided");
       return res.status(400).json({
         error: "Email and password are required",
         details: { email: !email, password: !password }
       });
     }
-    
-    if (!email || !password) {
-      console.log("Missing credentials - Email or password not provided");
-      return res.status(400).json({ error: "Email and password are required" });
+
+    // Basic email format validation
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) {
+      console.log("Invalid email format:", email);
+      return res.status(400).json({ error: "Invalid email format" });
+    }
+
+    // Basic password validation
+    if (password.length < 6) {
+      console.log("Password too short");
+      return res.status(400).json({ error: "Password must be at least 6 characters long" });
     }
     
     const user = await User.findOne({ email });
@@ -86,6 +96,14 @@ exports.login = async (req, res) => {
     
     if (!user) {
       console.log("User not found with email:", email);
+      
+      // Record failed attempt for rate limiting
+      if (req.rateLimiter && req.clientIp) {
+        req.rateLimiter.recordFailedAttempt(req.clientIp);
+        const remaining = req.rateLimiter.getRemainingAttempts(req.clientIp);
+        console.log(`Failed login attempt (user not found). Remaining attempts: ${remaining}`);
+      }
+      
       return res.status(401).json({ error: "Invalid credentials" });
     }
     
@@ -94,6 +112,14 @@ exports.login = async (req, res) => {
     
     if (!isPasswordValid) {
       console.log("Invalid password for user:", email);
+      
+      // Record failed attempt for rate limiting
+      if (req.rateLimiter && req.clientIp) {
+        req.rateLimiter.recordFailedAttempt(req.clientIp);
+        const remaining = req.rateLimiter.getRemainingAttempts(req.clientIp);
+        console.log(`Failed login attempt. Remaining attempts: ${remaining}`);
+      }
+      
       return res.status(401).json({ error: "Invalid credentials" });
     }
     
@@ -125,6 +151,12 @@ exports.login = async (req, res) => {
     } catch (saveError) {
       console.error('Error saving refresh token:', saveError);
       return res.status(500).json({ error: 'Failed to complete authentication' });
+    }
+    
+    // Record successful login for rate limiting
+    if (req.rateLimiter && req.clientIp) {
+      req.rateLimiter.recordSuccessfulAttempt(req.clientIp);
+      console.log(`✅ Successful login for ${email}, rate limit reset`);
     }
     
     // Prepare user data (exclude sensitive fields)
@@ -435,9 +467,9 @@ exports.getProfile = async (req, res) => {
 // Google Sign-in with Clerk
 exports.googleSignIn = async (req, res) => {
   try {
-    const { email, fullName, firstName, lastName, profileImage, clerkId, provider } = req.body;
+    const { email, fullName, firstName, lastName, profileImage, clerkId, provider, role } = req.body;
 
-    console.log("Google sign-in request:", { email, fullName, clerkId, provider });
+    console.log("Google sign-in request:", { email, fullName, clerkId, provider, role });
 
     if (!email || !clerkId) {
       return res.status(400).json({ error: "Email and Clerk ID are required" });
@@ -486,20 +518,39 @@ exports.googleSignIn = async (req, res) => {
         console.log("Existing Google user signed in:", user.email);
       }
     } else {
-      // Create new user
+      // For new users, check if role is provided
+      if (!role) {
+        // Return a special response indicating role selection is needed
+        return res.status(202).json({
+          message: "Role selection required",
+          requiresRoleSelection: true,
+          email: email,
+          clerkId: clerkId,
+          fullName: fullName || `${firstName || ''} ${lastName || ''}`.trim(),
+          profileImage: profileImage
+        });
+      }
+
+      // Validate role
+      const validRoles = ['user', 'retailer'];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ error: "Invalid role specified" });
+      }
+
+      // Create new user with specified role
       user = new User({
         fullName: fullName || `${firstName || ''} ${lastName || ''}`.trim(),
         email: email,
         clerkId: clerkId,
         profileImage: profileImage,
         provider: provider,
-        role: "user", // Default role for Google sign-in users
+        role: role,
         isEmailVerified: true, // Google users are pre-verified
         // No password needed for OAuth users
       });
 
       await user.save();
-      console.log("New Google user created:", user.email);
+      console.log("New Google user created with role:", user.email, role);
     }
 
     // Generate JWT tokens

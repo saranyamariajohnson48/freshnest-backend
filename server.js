@@ -8,6 +8,9 @@ const authRoutes = require("./routes/authRoutes");
 dotenv.config();
 const app = express();
 
+// Trust proxy for accurate IP addresses (needed for rate limiting)
+app.set('trust proxy', true);
+
 // Configure CORS with more specific options
 app.use(cors({
   origin: ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],

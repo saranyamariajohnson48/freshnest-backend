@@ -18,10 +18,11 @@ const {
 } = require("../controllers/authController");
 
 const { authenticateToken, adminOnly, optionalAuth } = require("../middleware/auth");
+const { loginRateLimit } = require("../middleware/rateLimiter");
 
 // Public routes (no authentication required)
 router.post("/signup", signup);
-router.post("/login", login);
+router.post("/login", loginRateLimit, login);
 router.post("/google-signin", googleSignIn);
 router.post("/verify-otp", verifyOTP);
 router.post("/resend-otp", resendOTP);
