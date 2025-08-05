@@ -4,6 +4,7 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 
 const authRoutes = require("./routes/authRoutes");
+const staffRoutes = require("./routes/staffRoutes");
 
 dotenv.config();
 const app = express();
@@ -31,6 +32,7 @@ app.get('/health', (req, res) => {
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/staff", staffRoutes);
 
 
 // Connect to MongoDB and Start Server

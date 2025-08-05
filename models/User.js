@@ -37,7 +37,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum:["retailer","user","admin"],
+    enum:["retailer","user","admin","staff"],
     default:"user",
   },
   isEmailVerified: {
@@ -61,6 +61,39 @@ const userSchema = new mongoose.Schema({
   },
   refreshTokenExpires: {
     type: Date,
+  },
+  // Staff-specific fields
+  username: {
+    type: String,
+    unique: true,
+    sparse: true, // Allows null values while maintaining uniqueness
+  },
+  address: {
+    type: String,
+  },
+  joiningDate: {
+    type: Date,
+  },
+  salary: {
+    type: Number,
+  },
+  shift: {
+    type: String,
+    enum: ["morning", "evening", "night", "flexible"],
+  },
+  status: {
+    type: String,
+    enum: ["active", "inactive"],
+    default: "active",
+  },
+  permissions: {
+    type: [String],
+    default: [],
+  },
+  employeeId: {
+    type: String,
+    unique: true,
+    sparse: true,
   },
 }, {
   timestamps: true
