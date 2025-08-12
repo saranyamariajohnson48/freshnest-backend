@@ -95,6 +95,21 @@ const userSchema = new mongoose.Schema({
     unique: true,
     sparse: true,
   },
+  // Leave balance for staff
+  leaveBalance: {
+    casual: {
+      type: Number,
+      default: 12
+    },
+    sick: {
+      type: Number,
+      default: 10
+    },
+    annual: {
+      type: Number,
+      default: 15
+    }
+  },
 }, {
   timestamps: true
 });

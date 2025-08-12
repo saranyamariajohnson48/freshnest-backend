@@ -5,6 +5,7 @@ const cors = require("cors");
 
 const authRoutes = require("./routes/authRoutes");
 const staffRoutes = require("./routes/staffRoutes");
+const leaveRoutes = require("./routes/leaveRoutes");
 
 dotenv.config();
 const app = express();
@@ -33,24 +34,24 @@ app.get('/health', (req, res) => {
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/staff", staffRoutes);
+app.use("/api/leave", leaveRoutes);
 
 
-// Connect to MongoDB and Start Server
+// Connect to MongoDB Atlas and Start Server
 mongoose
   .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+    serverSelectionTimeoutMS: 10000, // Timeout after 10s for Atlas
     socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+    maxPoolSize: 10, // Maintain up to 10 socket connections
   })
   .then(() => {
-    console.log('✅ Connected to MongoDB successfully');
+    console.log('✅ Connected to MongoDB Atlas successfully');
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () =>
       console.log(`🚀 Server started on port ${PORT}`)
     );
   })
   .catch((err) => {
-    console.error('❌ MongoDB connection error:', err.message);
+    console.error('❌ MongoDB Atlas connection error:', err.message);
     process.exit(1);
   }); 
