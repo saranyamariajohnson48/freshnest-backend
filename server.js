@@ -6,6 +6,7 @@ const cors = require("cors");
 const authRoutes = require("./routes/authRoutes");
 const staffRoutes = require("./routes/staffRoutes");
 const leaveRoutes = require("./routes/leaveRoutes");
+const productRoutes = require("./routes/productRoutes");
 
 dotenv.config();
 const app = express();
@@ -35,6 +36,7 @@ app.get('/health', (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/staff", staffRoutes);
 app.use("/api/leave", leaveRoutes);
+app.use("/api/products", productRoutes);
 
 
 // Connect to MongoDB Atlas and Start Server
