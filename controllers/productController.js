@@ -168,21 +168,29 @@ function normalizePayload(input) {
     return undefined;
   };
 
+  // Map loose category/brand text to curated catalog values
+  const { normalizeCategory, normalizeBrandForCategory } = require('../utils/catalog');
+
   const price = Number(get('price', 'Price', 'unit_price')); // required
   const costPrice = Number(get('costPrice', 'cost_price', 'CostPrice', 'Cost Price')) || 0;
   const stock = Number(get('stock', 'Stock', 'quantity', 'Quantity', 'qty')) || 0;
 
+  const rawCategory = String(get('category', 'Category')).trim();
+  const normalizedCategory = normalizeCategory(rawCategory);
+  const rawBrand = get('brand', 'Brand') ? String(get('brand', 'Brand')) : undefined;
+  const normalizedBrand = rawBrand ? normalizeBrandForCategory(normalizedCategory, rawBrand) : undefined;
+
   const payload = {
     name: String(get('name', 'Name', 'product_name', 'ProductName')).trim(),
     sku: String(get('sku', 'SKU', 'Sku')).trim().toUpperCase(),
-    category: String(get('category', 'Category')).trim(),
+    category: normalizedCategory,
     description: get('description', 'Description') ? String(get('description', 'Description')) : '',
     price: isNaN(price) ? 0 : price,
     costPrice: isNaN(costPrice) ? 0 : costPrice,
     stock: isNaN(stock) ? 0 : stock,
     unit: (get('unit', 'Unit') || 'unit').toString().toLowerCase(),
     status: (get('status', 'Status') || 'active').toString().toLowerCase(),
-    brand: get('brand', 'Brand') ? String(get('brand', 'Brand')) : undefined,
+    brand: normalizedBrand,
     barcode: get('barcode', 'Barcode') ? String(get('barcode', 'Barcode')) : undefined,
     tags: parseTags(get('tags', 'Tags')),
   };
@@ -201,14 +209,21 @@ function normalizePartialPayload(input) {
   const out = {};
   if (input.name !== undefined) out.name = String(input.name).trim();
   if (input.sku !== undefined) out.sku = String(input.sku).trim();
-  if (input.category !== undefined) out.category = String(input.category).trim();
+  if (input.category !== undefined) {
+    const { normalizeCategory } = require('../utils/catalog');
+    out.category = normalizeCategory(String(input.category).trim());
+  }
   if (input.description !== undefined) out.description = String(input.description || '');
   if (input.price !== undefined) out.price = Number(input.price);
   if (input.costPrice !== undefined) out.costPrice = Number(input.costPrice);
   if (input.stock !== undefined) out.stock = Number(input.stock);
   if (input.unit !== undefined) out.unit = String(input.unit).toLowerCase();
   if (input.status !== undefined) out.status = String(input.status).toLowerCase();
-  if (input.brand !== undefined) out.brand = input.brand ? String(input.brand) : undefined;
+  if (input.brand !== undefined) {
+    const { normalizeBrandForCategory } = require('../utils/catalog');
+    const category = out.category || input.category; // prefer normalized if present
+    out.brand = input.brand ? normalizeBrandForCategory(category, String(input.brand)) : undefined;
+  }
   if (input.barcode !== undefined) out.barcode = input.barcode ? String(input.barcode) : undefined;
   if (input.tags !== undefined) out.tags = Array.isArray(input.tags) ? input.tags : String(input.tags).split(',').map(s=>s.trim()).filter(Boolean);
 

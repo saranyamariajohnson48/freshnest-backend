@@ -37,7 +37,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum:["retailer","user","admin","staff"],
+    enum:["retailer","user","admin","staff","supplier"],
     default:"user",
   },
   isEmailVerified: {
@@ -94,6 +94,17 @@ const userSchema = new mongoose.Schema({
     type: String,
     unique: true,
     sparse: true,
+  },
+  // Supplier-specific fields
+  supplierDetails: {
+    contactPerson: { type: String },
+    category: { type: String },
+    paymentTerms: { type: String },
+    notes: { type: String },
+    totalOrders: { type: Number, default: 0 },
+    totalSpent: { type: Number, default: 0 },
+    rating: { type: Number, default: 0 },
+    lastOrderDate: { type: Date }
   },
   // Leave balance for staff
   leaveBalance: {
