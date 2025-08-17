@@ -90,6 +90,11 @@ exports.createUser = async (req, res) => {
 
     // Attach supplier details if provided
     if (role === 'supplier' && supplierDetails) {
+      // Validate category against allowed list
+      const allowed = ['Biscuits Pack','Noodles Pack','Chips Pack','Chocolate Pack','Juice Pack'];
+      if (!allowed.includes(supplierDetails.category)) {
+        return res.status(400).json({ error: 'Invalid supplier category' });
+      }
       userDoc.supplierDetails = {
         contactPerson: supplierDetails.contactPerson,
         category: supplierDetails.category,
@@ -179,6 +184,13 @@ exports.updateUser = async (req, res) => {
     // If supplierDetails present, map to nested fields to ensure validators run
     if (updates.supplierDetails) {
       const sd = updates.supplierDetails;
+      // Validate category if provided
+      if (sd.category) {
+        const allowed = ['Biscuits Pack','Noodles Pack','Chips Pack','Chocolate Pack','Juice Pack'];
+        if (!allowed.includes(sd.category)) {
+          return res.status(400).json({ error: 'Invalid supplier category' });
+        }
+      }
       updates['supplierDetails.contactPerson'] = sd.contactPerson;
       updates['supplierDetails.category'] = sd.category;
       updates['supplierDetails.paymentTerms'] = sd.paymentTerms;

@@ -8,6 +8,7 @@ const staffRoutes = require("./routes/staffRoutes");
 const leaveRoutes = require("./routes/leaveRoutes");
 const productRoutes = require("./routes/productRoutes");
 const usersRoutes = require("./routes/usersRoutes");
+const orderRoutes = require("./routes/orderRoutes");
 
 dotenv.config();
 const app = express();
@@ -39,6 +40,7 @@ app.use("/api/staff", staffRoutes);
 app.use("/api/leave", leaveRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/users", usersRoutes);
+app.use("/api/orders", orderRoutes);
 
 
 // Connect to MongoDB Atlas and Start Server

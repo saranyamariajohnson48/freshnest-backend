@@ -98,7 +98,16 @@ const userSchema = new mongoose.Schema({
   // Supplier-specific fields
   supplierDetails: {
     contactPerson: { type: String },
-    category: { type: String },
+    category: { 
+      type: String,
+      enum: [
+        'Biscuits Pack',
+        'Noodles Pack',
+        'Chips Pack',
+        'Chocolate Pack',
+        'Juice Pack'
+      ]
+    },
     paymentTerms: { type: String },
     notes: { type: String },
     totalOrders: { type: Number, default: 0 },
