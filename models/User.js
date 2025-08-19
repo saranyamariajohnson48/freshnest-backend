@@ -68,6 +68,9 @@ const userSchema = new mongoose.Schema({
     unique: true,
     sparse: true, // Allows null values while maintaining uniqueness
   },
+  position: {
+    type: String,
+  },
   address: {
     type: String,
   },
