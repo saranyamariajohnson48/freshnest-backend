@@ -154,4 +154,36 @@ exports.deleteTask = async (req, res) => {
   }
 };
 
+// List assignable staff (active staff excluding supervisors and current user)
+exports.listAssignableStaff = async (req, res) => {
+  try {
+    const requester = req.user;
+
+    const canView =
+      requester.role === "admin" ||
+      (requester.role === "staff" && isSupervisorPosition(requester.position));
+    if (!canView) {
+      return res.status(403).json({ success: false, error: "Not authorized" });
+    }
+
+    const allStaff = await User.find({ role: "staff", status: "active" })
+      .select("fullName employeeId position email role status");
+    const currentId = String(requester._id);
+    const list = allStaff
+      .filter(u => !isSupervisorPosition(u.position) && String(u._id) !== currentId)
+      .map(u => ({
+        _id: u._id,
+        fullName: u.fullName,
+        employeeId: u.employeeId,
+        position: u.position || 'Staff',
+        email: u.email,
+      }));
+
+    res.json({ success: true, data: list });
+  } catch (error) {
+    console.error("List assignable staff error:", error);
+    res.status(500).json({ success: false, error: "Failed to fetch staff" });
+  }
+};
+
 

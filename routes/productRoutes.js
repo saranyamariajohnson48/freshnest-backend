@@ -3,14 +3,17 @@ const router = express.Router();
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB
 
-const { adminOnly } = require('../middleware/auth');
+const { adminOnly, optionalAuth } = require('../middleware/auth');
 const productController = require('../controllers/productController');
 
 // Create product
 router.post('/', adminOnly, productController.createProduct);
 
-// List products
+// List products (admin)
 router.get('/', adminOnly, productController.listProducts);
+
+// Public list products (read-only)
+router.get('/public', optionalAuth, productController.publicListProducts);
 
 // Update product
 router.put('/:id', adminOnly, productController.updateProduct);

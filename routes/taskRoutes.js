@@ -8,6 +8,7 @@ router.post("/", authenticateToken, taskController.createTask);
 router.get("/", authenticateToken, taskController.listTasks);
 router.put("/:id/status", authenticateToken, taskController.updateStatus);
 router.delete("/:id", authenticateToken, taskController.deleteTask);
+router.get("/assignable/staff", authenticateToken, taskController.listAssignableStaff);
 
 module.exports = router;
 

@@ -19,7 +19,7 @@ exports.createProduct = async (req, res) => {
   }
 };
 
-// List products with pagination and search
+// List products with pagination and search (admin)
 exports.listProducts = async (req, res) => {
   try {
     const { page = 1, limit = 10, search = '', status, category } = req.query;
@@ -34,6 +34,31 @@ exports.listProducts = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const [items, total] = await Promise.all([
       Product.find(query).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)),
+      Product.countDocuments(query)
+    ]);
+
+    res.json({ success: true, data: { items, pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / parseInt(limit)) } } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch products' });
+  }
+};
+
+// Public: List active products with pagination and search
+exports.publicListProducts = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, search = '', category } = req.query;
+    const query = { status: 'active' };
+
+    if (category) query.category = category;
+    if (search) {
+      query.$text = { $search: search };
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const projection = { name: 1, sku: 1, category: 1, price: 1, stock: 1, unit: 1, status: 1, updatedAt: 1, createdAt: 1, brand: 1 };
+
+    const [items, total] = await Promise.all([
+      Product.find(query, projection).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)),
       Product.countDocuments(query)
     ]);
 
