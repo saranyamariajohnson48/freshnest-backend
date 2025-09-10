@@ -84,16 +84,31 @@ exports.verifyPayment = async (req, res) => {
 
     // Save transaction to database
     try {
+      const normalizedEmail = (req.user?.email || req.body?.customer?.email || '').trim().toLowerCase();
       const transactionData = {
         razorpay_payment_id,
         razorpay_order_id,
         razorpay_signature,
-        customer: req.body.customer || {},
+        customer: {
+          ...(req.body.customer || {}),
+          email: normalizedEmail,
+        },
         order: req.body.order || {},
         paymentMethod: req.body.paymentMethod || 'cards',
         status: 'completed',
         paymentDate: new Date()
       };
+
+      // Ensure linkage to authenticated user when available
+      if (req.user) {
+        transactionData.userId = req.user._id;
+        transactionData.customer = {
+          ...(transactionData.customer || {}),
+          email: normalizedEmail || req.user.email,
+          name: transactionData.customer?.name || req.user.fullName || 'User',
+          phone: transactionData.customer?.phone || req.user.phone || ''
+        };
+      }
 
       const transaction = new Transaction(transactionData);
       await transaction.save();
@@ -335,16 +350,28 @@ exports.saveTransaction = async (req, res) => {
     }
 
     // Create transaction data
+    const normalizedEmail = (req.user?.email || customer?.email || '').trim().toLowerCase();
     const transactionData = {
       razorpay_payment_id,
       razorpay_order_id: razorpay_order_id || `order_${Date.now()}`,
       razorpay_signature: razorpay_signature || `sig_${Date.now()}`,
-      customer,
+      customer: { ...(customer || {}), email: normalizedEmail },
       order,
       paymentMethod: paymentMethod || 'cards',
       status,
       paymentDate: new Date()
     };
+
+    // Ensure saved customer email matches authenticated user when available
+    if (req.user) {
+      transactionData.userId = req.user._id;
+      transactionData.customer = {
+        ...(transactionData.customer || {}),
+        email: normalizedEmail || req.user.email,
+        name: transactionData.customer?.name || req.user.fullName || 'User',
+        phone: transactionData.customer?.phone || req.user.phone || ''
+      };
+    }
 
     // Save transaction to database
     const transaction = new Transaction(transactionData);

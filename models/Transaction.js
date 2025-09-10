@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const transactionSchema = new mongoose.Schema({
+  // Linked user (owner of the purchase)
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    index: true,
+  },
   // Payment Details
   razorpay_payment_id: {
     type: String,
@@ -45,9 +51,16 @@ const transactionSchema = new mongoose.Schema({
       quantity: Number,
       category: String
     }],
+    // Store both raw total in INR and paise for integrity
     totalAmount: {
       type: Number,
       required: true
+    },
+    totalAmountPaise: {
+      type: Number,
+      default: function() {
+        return Math.round((this.order?.totalAmount || 0) * 100);
+      }
     },
     currency: {
       type: String,
@@ -97,5 +110,6 @@ transactionSchema.index({ razorpay_payment_id: 1 });
 transactionSchema.index({ 'customer.email': 1 });
 transactionSchema.index({ paymentDate: -1 });
 transactionSchema.index({ status: 1 });
+transactionSchema.index({ userId: 1, paymentDate: -1 });
 
 module.exports = mongoose.model('Transaction', transactionSchema);
