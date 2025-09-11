@@ -7,7 +7,8 @@ const {
   updateUser,
   deleteUser,
   toggleStatus,
-  searchUsers
+  searchUsers,
+  sendSupplierOnboarding
 } = require('../controllers/usersController');
 
 const { authenticateToken, adminOnly } = require('../middleware/auth');
@@ -20,5 +21,6 @@ router.get('/:id', adminOnly, getUserById);
 router.put('/:id', adminOnly, updateUser);
 router.delete('/:id', adminOnly, deleteUser);
 router.patch('/:id/toggle-status', adminOnly, toggleStatus);
+router.post('/:id/send-onboarding-email', adminOnly, sendSupplierOnboarding);
 
 module.exports = router;

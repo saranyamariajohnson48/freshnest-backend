@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const User = require('../models/User');
+const { sendSupplierOnboardingEmail } = require('../services/emailService');
 
 // Build a projection that hides sensitive fields
 const SAFE_PROJECTION = '-password -otp -otpExpires -resetPasswordToken -resetPasswordExpires -refreshToken -refreshTokenExpires';
@@ -281,5 +282,31 @@ exports.searchUsers = async (req, res) => {
   } catch (error) {
     console.error('Search users error:', error);
     res.status(500).json({ error: 'Failed to search users' });
+  }
+};
+
+// POST /api/users/:id/send-onboarding-email
+exports.sendSupplierOnboarding = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email, supplierName } = req.body || {};
+
+    // If email not passed, fetch from user
+    let targetEmail = email;
+    let name = supplierName;
+    if (!targetEmail || !name) {
+      const u = await User.findById(id).select('email fullName role');
+      if (!u) return res.status(404).json({ error: 'User not found' });
+      if (u.role !== 'supplier') return res.status(400).json({ error: 'Target user is not a supplier' });
+      targetEmail = targetEmail || u.email;
+      name = name || u.fullName || 'Supplier';
+    }
+
+    const ok = await sendSupplierOnboardingEmail(targetEmail, name);
+    if (!ok) return res.status(500).json({ error: 'Failed to send email' });
+    res.json({ success: true, message: 'Onboarding email sent' });
+  } catch (error) {
+    console.error('sendSupplierOnboarding error:', error);
+    res.status(500).json({ error: 'Failed to send onboarding email' });
   }
 };

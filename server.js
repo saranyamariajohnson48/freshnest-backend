@@ -12,6 +12,7 @@ const orderRoutes = require("./routes/orderRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 const taskRoutes = require("./routes/taskRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const supplierApplicationRoutes = require("./routes/supplierApplicationRoutes");
 
 dotenv.config();
 const app = express();
@@ -20,8 +21,17 @@ const app = express();
 app.set('trust proxy', true);
 
 // Configure CORS with more specific options
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174'
+];
+if (process.env.FRONTEND_BASE_URL) {
+  allowedOrigins.push(process.env.FRONTEND_BASE_URL);
+}
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
+  origin: allowedOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
@@ -47,6 +57,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/supplier-applications", supplierApplicationRoutes);
 
 
 // Connect to MongoDB Atlas and Start Server

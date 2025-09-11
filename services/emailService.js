@@ -2,10 +2,22 @@ const nodemailer = require('nodemailer');
 
 // Create transporter
 const createTransporter = () => {
+  const service = (process.env.EMAIL_SERVICE || '').toLowerCase();
+
+  if (service === 'gmail') {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS, // For Gmail, use an App Password if 2FA is enabled
+      },
+    });
+  }
+
   return nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
-    port: process.env.EMAIL_PORT,
-    secure: false, // true for 465, false for other ports
+    port: Number(process.env.EMAIL_PORT) || 587,
+    secure: String(process.env.EMAIL_PORT) === '465', // secure if using port 465
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
@@ -30,7 +42,7 @@ const sendOTPEmail = async (email, otp, userType) => {
     console.log('✅ Email connection verified successfully');
     
     const mailOptions = {
-      from: process.env.EMAIL_FROM,
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
       to: email,
       subject: `FreshNest - Email Verification Code`,
       html: `
@@ -133,10 +145,11 @@ const sendPasswordResetEmail = async (email, resetToken) => {
     await transporter.verify();
     console.log('✅ Email connection verified successfully');
     
-    const resetUrl = `http://localhost:5173/reset-password?token=${resetToken}`;
+    const frontendBase = process.env.FRONTEND_BASE_URL || 'http://localhost:5173';
+    const resetUrl = `${frontendBase}/reset-password?token=${resetToken}`;
     
     const mailOptions = {
-      from: process.env.EMAIL_FROM,
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
       to: email,
       subject: `FreshNest - Password Reset Request`,
       html: `
@@ -248,7 +261,7 @@ const sendStaffWelcomeEmail = async (email, staffData) => {
     const { fullName, username, password, employeeId } = staffData;
     
     const mailOptions = {
-      from: process.env.EMAIL_FROM,
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
       to: email,
       subject: `Welcome to FreshNest Team - Your Account Details`,
       html: `
@@ -404,5 +417,81 @@ const sendStaffWelcomeEmail = async (email, staffData) => {
 module.exports = {
   sendOTPEmail,
   sendPasswordResetEmail,
-  sendStaffWelcomeEmail
+  sendStaffWelcomeEmail,
+  sendSupplierOnboardingEmail: async (email, supplierName = 'Supplier') => {
+    try {
+      const transporter = createTransporter();
+      await transporter.verify();
+
+      const subject = 'FreshNest – Supplier Onboarding: Document Submission Request';
+      const frontendBase = process.env.FRONTEND_BASE_URL || 'http://localhost:5173';
+      const formUrl = process.env.ONBOARDING_FORM_URL || `${frontendBase}/supplier-onboarding`;
+      console.log('📧 Supplier onboarding email link:', formUrl);
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Supplier Onboarding - FreshNest</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px; border-radius: 10px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+            <div style="text-align: center; padding: 20px 0; border-bottom: 2px solid #004030;">
+              <h1 style="color: #004030; margin: 0; font-size: 32px; font-weight: bold;">Fresh<span style="color: #437057;">Nest</span></h1>
+              <p style="color: #666; margin: 5px 0 0 0; font-size: 16px;">Fresh Groceries, Delivered Fresh</p>
+            </div>
+
+            <div style="padding: 30px 20px;">
+              <h2 style="color: #004030; margin-bottom: 20px; font-size: 22px; text-align: center;">Supplier Onboarding – Document Submission</h2>
+              <p style="color: #444; font-size: 15px; line-height: 1.7;">Hello <strong>${supplierName}</strong>,</p>
+              <p style="color: #444; font-size: 15px; line-height: 1.7;">We are initiating your onboarding as a supplier with FreshNest. Please reply to this email with the following digital documents/details:</p>
+
+              <div style="background-color: #f8f9fa; border: 2px dashed #437057; border-radius: 10px; padding: 20px; margin: 20px 0;">
+                <ol style="color: #004030; font-size: 15px; line-height: 1.9; padding-left: 18px; margin: 0;">
+                  <li>Business Registration/License Number</li>
+                  <li>GST/Tax Identification Number</li>
+                  <li>Bank Details (Account name, number, IFSC/SWIFT)</li>
+                  <li>Product Catalog (PDF/Sheet) and Pricing List</li>
+                  <li>Quality Certifications (if any): ISO/HACCP/etc.</li>
+                  <li>Delivery Terms & Lead Times</li>
+                  <li>Primary Contact Details (Name, Email, Phone, Address)</li>
+                </ol>
+              </div>
+
+              <p style="color: #666; font-size: 14px;">Optional: Any existing references or client list.</p>
+              <div style="text-align:center; margin-top:28px;">
+                <a href="${formUrl}" target="_blank" rel="noopener noreferrer" style="background-color:#004030; color:#ffffff; padding:12px 18px; text-decoration:none; border-radius:8px; font-weight:bold;">Open Supplier Onboarding Form</a>
+              </div>
+              <div style="margin-top:18px; padding: 12px; background:#f8f9fa; border-radius:8px; border-left:4px solid #437057; color:#333; font-size: 13px;">
+                If the button doesn’t work, copy and paste this link into your browser:<br />
+                <span style="word-break: break-all; color:#004030;">${formUrl}</span>
+              </div>
+              <p style="color: #444; font-size: 15px; line-height: 1.7; margin-top: 24px;">Thank you,<br><strong>FreshNest Procurement Team</strong></p>
+            </div>
+
+            <div style="border-top: 1px solid #eee; padding: 20px; text-align: center; background-color: #f8f9fa; border-radius: 0 0 10px 10px;">
+              <p style="color: #999; font-size: 12px; margin: 0;">© 2024 FreshNest. All rights reserved.<br>This is an automated email, please do not reply.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const mailOptions = {
+        from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+        to: email,
+        subject,
+        html,
+        text: `Supplier Onboarding – Document Submission\n\nHello ${supplierName},\n\nPlease reply with: 1) Business License, 2) GST/Tax ID, 3) Bank details, 4) Product catalog and pricing, 5) Certifications, 6) Delivery terms & lead times, 7) Primary contact details.\n\nThank you,\nFreshNest Procurement Team`
+      };
+
+      const result = await transporter.sendMail(mailOptions);
+      console.log(`✅ Supplier onboarding email sent to ${email} (id: ${result.messageId})`);
+      return true;
+    } catch (err) {
+      console.error('❌ Error sending supplier onboarding email:', err);
+      return false;
+    }
+  }
 };
