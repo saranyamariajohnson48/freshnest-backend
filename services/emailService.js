@@ -145,7 +145,7 @@ const sendPasswordResetEmail = async (email, resetToken) => {
     await transporter.verify();
     console.log('✅ Email connection verified successfully');
     
-    const frontendBase = process.env.FRONTEND_BASE_URL || 'http://localhost:5173';
+    const frontendBase = process.env.FRONTEND_BASE_URL || 'https://saranyamariajohnson48.github.io/freshnest-frontend';
     const resetUrl = `${frontendBase}/reset-password?token=${resetToken}`;
     
     const mailOptions = {
@@ -424,8 +424,8 @@ module.exports = {
       await transporter.verify();
 
       const subject = 'FreshNest – Supplier Onboarding: Document Submission Request';
-      const frontendBase = process.env.FRONTEND_BASE_URL || 'http://localhost:5173';
-      const formUrl = process.env.ONBOARDING_FORM_URL || `${frontendBase}/supplier-onboarding`;
+      const frontendBase = process.env.FRONTEND_BASE_URL || 'https://saranyamariajohnson48.github.io/freshnest-frontend';
+      const formUrl = process.env.ONBOARDING_FORM_URL || `${frontendBase}/SupplierOnboardingPublic.jsx`;
       console.log('📧 Supplier onboarding email link:', formUrl);
       const html = `
         <!DOCTYPE html>
@@ -462,10 +462,6 @@ module.exports = {
               <p style="color: #666; font-size: 14px;">Optional: Any existing references or client list.</p>
               <div style="text-align:center; margin-top:28px;">
                 <a href="${formUrl}" target="_blank" rel="noopener noreferrer" style="background-color:#004030; color:#ffffff; padding:12px 18px; text-decoration:none; border-radius:8px; font-weight:bold;">Open Supplier Onboarding Form</a>
-              </div>
-              <div style="margin-top:18px; padding: 12px; background:#f8f9fa; border-radius:8px; border-left:4px solid #437057; color:#333; font-size: 13px;">
-                If the button doesn’t work, copy and paste this link into your browser:<br />
-                <span style="word-break: break-all; color:#004030;">${formUrl}</span>
               </div>
               <p style="color: #444; font-size: 15px; line-height: 1.7; margin-top: 24px;">Thank you,<br><strong>FreshNest Procurement Team</strong></p>
             </div>
