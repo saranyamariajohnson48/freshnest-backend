@@ -1,6 +1,8 @@
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const Transaction = require('../models/Transaction');
+const Product = require('../models/Product');
+const User = require('../models/User');
 
 // Initialize Razorpay
 const razorpay = new Razorpay({
@@ -112,6 +114,89 @@ exports.verifyPayment = async (req, res) => {
 
       const transaction = new Transaction(transactionData);
       await transaction.save();
+
+      // After saving the transaction, decrement product stock based on purchased items
+      try {
+        const items = Array.isArray(req.body?.order?.items) ? req.body.order.items : [];
+        if (items.length > 0) {
+          // Perform atomic decrements and prevent negative stock
+          const decrementOps = items.map((it) => ({
+            updateOne: {
+              filter: { _id: it.id },
+              update: [
+                {
+                  $set: {
+                    stock: {
+                      $let: {
+                        vars: { newStock: { $subtract: ['$stock', { $ifNull: [it.quantity, 0] }] } },
+                        in: {
+                          $cond: [
+                            { $lt: ['$$newStock', 0] },
+                            0,
+                            '$$newStock'
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }));
+          if (decrementOps.length) {
+            await Product.bulkWrite(decrementOps);
+
+            // Fetch affected products to send low-stock alerts where applicable
+            const affectedIds = items.map(it => it.id).filter(Boolean);
+            const affectedProducts = await Product.find({ _id: { $in: affectedIds } }).lean();
+            await Promise.all((affectedProducts || []).map(async (p) => {
+              try {
+                if (typeof p.stock === 'number' && p.stock <= 5 && p.supplierId) {
+                  const supplier = await User.findById(p.supplierId).lean();
+                  if (supplier?.email) {
+                    const nodemailer = require('nodemailer');
+                    const transporter = nodemailer.createTransport({
+                      host: process.env.EMAIL_HOST,
+                      port: Number(process.env.EMAIL_PORT) || 587,
+                      secure: String(process.env.EMAIL_PORT) === '465',
+                      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+                    });
+                    try { await transporter.verify(); } catch (_) {}
+                    const mailOptions = {
+                      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+                      to: supplier.email,
+                      subject: `Urgent: Restock Required for ${p.name} (Stock: ${p.stock})`,
+                      html: `
+                        <div style="font-family: Arial, sans-serif;">
+                          <h2 style=\"color:#0f5132;\">Low Stock Alert – Immediate Action Required</h2>
+                          <p>Dear ${supplier.fullName || supplier.supplierDetails?.contactPerson || 'Supplier'},</p>
+                          <p>The product <strong>${p.name}</strong> (SKU: ${p.sku}) has reached a low stock level.</p>
+                          <table style=\"border-collapse:collapse; margin:12px 0;\">
+                            <tr><td style=\"padding:6px 12px;border:1px solid #ddd;\">Category</td><td style=\"padding:6px 12px;border:1px solid #ddd;\">${p.category}</td></tr>
+                            <tr><td style=\"padding:6px 12px;border:1px solid #ddd;\">Brand</td><td style=\"padding:6px 12px;border:1px solid #ddd;\">${p.brand || '-'}</td></tr>
+                            <tr><td style=\"padding:6px 12px;border:1px solid #ddd;\">Current Stock</td><td style=\"padding:6px 12px;border:1px solid #ddd; font-weight:bold; color:#b91c1c;\">${p.stock} ${p.unit || 'unit'}</td></tr>
+                            <tr><td style=\"padding:6px 12px;border:1px solid #ddd;\">Threshold</td><td style=\"padding:6px 12px;border:1px solid #ddd;\">5</td></tr>
+                          </table>
+                          <p>Please prioritize replenishment to avoid stockouts.</p>
+                          <p>Regards,<br/>FreshNest Inventory</p>
+                        </div>
+                      `,
+                      text: `Low Stock Alert: ${p.name} (SKU ${p.sku}) is at ${p.stock} ${p.unit || 'unit'}. Threshold: 5. Please restock immediately.`
+                    };
+                    await transporter.sendMail(mailOptions);
+                    console.log(`📧 Low stock alert sent to supplier ${supplier.email} for product ${p.sku}`);
+                  }
+                }
+              } catch (notifyErr) {
+                console.error('Low-stock alert email failed (verify path):', notifyErr);
+              }
+            }));
+          }
+        }
+      } catch (invErr) {
+        console.error('Inventory decrement failed after payment verify:', invErr);
+        // Do not fail the verification response due to inventory update issues
+      }
 
       console.log('✅ Transaction saved successfully:', transaction._id);
     } catch (saveError) {
@@ -376,6 +461,80 @@ exports.saveTransaction = async (req, res) => {
     // Save transaction to database
     const transaction = new Transaction(transactionData);
     await transaction.save();
+
+    // Decrement stock for purchased items (demo save endpoint)
+    try {
+      const items = Array.isArray(order?.items) ? order.items : [];
+      if (items.length > 0) {
+        const decrementOps = items.map((it) => ({
+          updateOne: {
+            filter: { _id: it.id },
+            update: [
+              {
+                $set: {
+                  stock: {
+                    $let: {
+                      vars: { newStock: { $subtract: ['$stock', { $ifNull: [it.quantity, 0] }] } },
+                      in: { $cond: [{ $lt: ['$$newStock', 0] }, 0, '$$newStock'] }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }));
+        if (decrementOps.length) {
+          await Product.bulkWrite(decrementOps);
+
+          const affectedIds = items.map(it => it.id).filter(Boolean);
+          const affectedProducts = await Product.find({ _id: { $in: affectedIds } }).lean();
+          await Promise.all((affectedProducts || []).map(async (p) => {
+            try {
+              if (typeof p.stock === 'number' && p.stock <= 5 && p.supplierId) {
+                const supplier = await User.findById(p.supplierId).lean();
+                if (supplier?.email) {
+                  const nodemailer = require('nodemailer');
+                  const transporter = nodemailer.createTransport({
+                    host: process.env.EMAIL_HOST,
+                    port: Number(process.env.EMAIL_PORT) || 587,
+                    secure: String(process.env.EMAIL_PORT) === '465',
+                    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+                  });
+                  try { await transporter.verify(); } catch (_) {}
+                  const mailOptions = {
+                    from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+                    to: supplier.email,
+                    subject: `Urgent: Restock Required for ${p.name} (Stock: ${p.stock})`,
+                    html: `
+                      <div style="font-family: Arial, sans-serif;">
+                        <h2 style=\"color:#0f5132;\">Low Stock Alert – Immediate Action Required</h2>
+                        <p>Dear ${supplier.fullName || supplier.supplierDetails?.contactPerson || 'Supplier'},</p>
+                        <p>The product <strong>${p.name}</strong> (SKU: ${p.sku}) has reached a low stock level.</p>
+                        <table style=\"border-collapse:collapse; margin:12px 0;\">
+                          <tr><td style=\"padding:6px 12px;border:1px solid #ddd;\">Category</td><td style=\"padding:6px 12px;border:1px solid #ddd;\">${p.category}</td></tr>
+                          <tr><td style=\"padding:6px 12px;border:1px solid #ddd;\">Brand</td><td style=\"padding:6px 12px;border:1px solid #ddd;\">${p.brand || '-'}</td></tr>
+                          <tr><td style=\"padding:6px 12px;border:1px solid #ddd;\">Current Stock</td><td style=\"padding:6px 12px;border:1px solid #ddd; font-weight:bold; color:#b91c1c;\">${p.stock} ${p.unit || 'unit'}</td></tr>
+                          <tr><td style=\"padding:6px 12px;border:1px solid #ddd;\">Threshold</td><td style=\"padding:6px 12px;border:1px solid #ddd;\">5</td></tr>
+                        </table>
+                        <p>Please prioritize replenishment to avoid stockouts.</p>
+                        <p>Regards,<br/>FreshNest Inventory</p>
+                      </div>
+                    `,
+                    text: `Low Stock Alert: ${p.name} (SKU ${p.sku}) is at ${p.stock} ${p.unit || 'unit'}. Threshold: 5. Please restock immediately.`
+                  };
+                  await transporter.sendMail(mailOptions);
+                  console.log(`📧 Low stock alert sent to supplier ${supplier.email} for product ${p.sku}`);
+                }
+              }
+            } catch (notifyErr) {
+              console.error('Low-stock alert email failed (save path):', notifyErr);
+            }
+          }));
+        }
+      }
+    } catch (invErr) {
+      console.error('Inventory decrement failed after transaction save:', invErr);
+    }
 
     console.log('✅ Transaction saved successfully:', transaction._id);
 
