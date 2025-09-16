@@ -1,6 +1,7 @@
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const Transaction = require('../models/Transaction');
+const Purchase = require('../models/Purchase');
 const Product = require('../models/Product');
 const User = require('../models/User');
 
@@ -114,6 +115,25 @@ exports.verifyPayment = async (req, res) => {
 
       const transaction = new Transaction(transactionData);
       await transaction.save();
+
+      // Also save a simplified purchase record for user-facing history
+      try {
+        await Purchase.create({
+          userId: req.user?._id,
+          customerEmail: transactionData.customer?.email,
+          amount: Number(transactionData.order?.totalAmount || 0),
+          currency: transactionData.order?.currency || 'INR',
+          paymentMethod: transactionData.paymentMethod || 'cards',
+          status: transactionData.status || 'completed',
+          type: 'product',
+          orderId: razorpay_order_id,
+          paymentId: razorpay_payment_id,
+          items: Array.isArray(req.body?.order?.items) ? req.body.order.items : [],
+          purchasedAt: transactionData.paymentDate,
+        });
+      } catch (purchaseErr) {
+        console.error('Save purchase mirror failed (verify path):', purchaseErr);
+      }
 
       // After saving the transaction, decrement product stock based on purchased items
       try {
@@ -461,6 +481,25 @@ exports.saveTransaction = async (req, res) => {
     // Save transaction to database
     const transaction = new Transaction(transactionData);
     await transaction.save();
+
+    // Also create a simplified purchase record (demo save path)
+    try {
+      await Purchase.create({
+        userId: req.user?._id,
+        customerEmail: transactionData.customer?.email,
+        amount: Number(order?.totalAmount || 0),
+        currency: order?.currency || 'INR',
+        paymentMethod: transactionData.paymentMethod || 'cards',
+        status: transactionData.status || 'completed',
+        type: 'product',
+        orderId: transactionData.razorpay_order_id,
+        paymentId: transactionData.razorpay_payment_id,
+        items: Array.isArray(order?.items) ? order.items : [],
+        purchasedAt: transactionData.paymentDate,
+      });
+    } catch (purchaseErr) {
+      console.error('Save purchase mirror failed (save path):', purchaseErr);
+    }
 
     // Decrement stock for purchased items (demo save endpoint)
     try {

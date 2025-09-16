@@ -18,6 +18,9 @@ router.get('/public', optionalAuth, productController.publicListProducts);
 // Update product
 router.put('/:id', adminOnly, productController.updateProduct);
 
+// Manually trigger low stock alert for a product
+router.post('/:id/alerts/low-stock', adminOnly, productController.sendLowStockAlert);
+
 // Delete product (soft by default, permanent with ?permanent=true)
 router.delete('/:id', adminOnly, productController.deleteProduct);
 

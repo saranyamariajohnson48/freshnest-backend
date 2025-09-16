@@ -7,7 +7,7 @@ const SAFE_PROJECTION = '-password -otp -otpExpires -resetPasswordToken -resetPa
 
 // Helper: build query from filters
 function buildUserQuery(queryParams = {}) {
-  const { role, status, search, category } = queryParams;
+  const { role, status, search, category, brand } = queryParams;
   const query = {};
 
   if (role) {
@@ -19,6 +19,10 @@ function buildUserQuery(queryParams = {}) {
   // category applies to suppliers: supplierDetails.category
   if (category) {
     query['supplierDetails.category'] = category;
+  }
+  // brand applies to suppliers with brands list
+  if (brand) {
+    query['supplierDetails.brands'] = { $in: [brand] };
   }
   if (search) {
     query.$or = [
@@ -99,6 +103,7 @@ exports.createUser = async (req, res) => {
       userDoc.supplierDetails = {
         contactPerson: supplierDetails.contactPerson,
         category: supplierDetails.category,
+        brands: Array.isArray(supplierDetails.brands) ? supplierDetails.brands : (supplierDetails.brands ? String(supplierDetails.brands).split(',').map(s=>s.trim()).filter(Boolean) : []),
         paymentTerms: supplierDetails.paymentTerms,
         notes: supplierDetails.notes,
         totalOrders: supplierDetails.totalOrders || 0,
@@ -194,6 +199,9 @@ exports.updateUser = async (req, res) => {
       }
       updates['supplierDetails.contactPerson'] = sd.contactPerson;
       updates['supplierDetails.category'] = sd.category;
+      if (sd.brands !== undefined) {
+        updates['supplierDetails.brands'] = Array.isArray(sd.brands) ? sd.brands : String(sd.brands || '').split(',').map(s=>s.trim()).filter(Boolean);
+      }
       updates['supplierDetails.paymentTerms'] = sd.paymentTerms;
       updates['supplierDetails.notes'] = sd.notes;
       updates['supplierDetails.totalOrders'] = sd.totalOrders;

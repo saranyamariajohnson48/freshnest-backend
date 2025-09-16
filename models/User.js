@@ -111,6 +111,7 @@ const userSchema = new mongoose.Schema({
         'Juice Pack'
       ]
     },
+    brands: { type: [String], default: [] },
     paymentTerms: { type: String },
     notes: { type: String },
     totalOrders: { type: Number, default: 0 },

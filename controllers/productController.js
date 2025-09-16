@@ -192,6 +192,109 @@ exports.updateProduct = async (req, res) => {
   }
 };
 
+// Manually trigger low-stock alert email for a specific product
+exports.sendLowStockAlert = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { supplierId } = req.body || {};
+    const product = await Product.findById(id);
+    if (!product) return res.status(404).json({ success: false, error: 'Product not found' });
+
+    const threshold = Number(process.env.LOW_STOCK_THRESHOLD || 5);
+    // Proceed even if stock is above threshold; this is manual trigger
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({
+      host: process.env.EMAIL_HOST,
+      port: Number(process.env.EMAIL_PORT) || 587,
+      secure: String(process.env.EMAIL_PORT) === '465',
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+    });
+    try { await transporter.verify(); } catch (_) {}
+
+    const recipients = new Map();
+
+    if (supplierId) {
+      // Specific supplier requested
+      const supplier = await User.findOne({ _id: supplierId, role: 'supplier', status: 'active' }).lean();
+      if (!supplier || !supplier.email) {
+        return res.status(400).json({ success: false, error: 'Invalid supplier selected' });
+      }
+      // Optional: ensure category compatibility if supplier has one
+      if (supplier?.supplierDetails?.category && product.category && supplier.supplierDetails.category !== product.category) {
+        return res.status(400).json({ success: false, error: 'Supplier category does not match product category' });
+      }
+      const name = supplier.fullName || supplier.supplierDetails?.contactPerson || 'Supplier';
+      recipients.set(supplier.email, name);
+    } else {
+      // Linked supplier (if any)
+      if (product.supplierId) {
+        const supplier = await User.findById(product.supplierId).lean();
+        if (supplier?.email) {
+          const name = supplier.fullName || supplier.supplierDetails?.contactPerson || 'Supplier';
+          recipients.set(supplier.email, name);
+        }
+      }
+
+      // Category suppliers
+      if (product.category) {
+        const categorySuppliers = await User.find({
+          role: 'supplier',
+          'supplierDetails.category': product.category,
+          status: 'active'
+        }).select('email fullName supplierDetails.contactPerson').lean();
+        for (const s of categorySuppliers) {
+          if (s?.email) {
+            const name = s.fullName || s.supplierDetails?.contactPerson || 'Supplier';
+            recipients.set(s.email, name);
+          }
+        }
+      }
+    }
+
+    if (recipients.size === 0) {
+      return res.json({ success: true, message: 'No supplier recipients found to notify' });
+    }
+
+    const sendPromises = [];
+    for (const [email, supplierName] of recipients.entries()) {
+      const mailOptions = {
+        from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+        to: email,
+        subject: `Manual Low Stock Alert: ${product.name} (Stock: ${product.stock ?? '-'})`,
+        html: `
+          <div style="font-family: Arial, sans-serif;">
+            <h2 style="color:#0f5132;">Low Stock Alert – Manual Notification</h2>
+            <p>Dear ${supplierName},</p>
+            <p>The product <strong>${product.name}</strong> (SKU: ${product.sku}) requires attention.</p>
+            <table style="border-collapse:collapse; margin:12px 0;">
+              <tr><td style="padding:6px 12px;border:1px solid #ddd;">Category</td><td style="padding:6px 12px;border:1px solid #ddd;">${product.category}</td></tr>
+              <tr><td style="padding:6px 12px;border:1px solid #ddd;">Brand</td><td style="padding:6px 12px;border:1px solid #ddd;">${product.brand || '-'}</td></tr>
+              <tr><td style="padding:6px 12px;border:1px solid #ddd;">Current Stock</td><td style="padding:6px 12px;border:1px solid #ddd; font-weight:bold; color:#b91c1c;">${product.stock ?? '-'} ${product.unit || 'unit'}</td></tr>
+              <tr><td style="padding:6px 12px;border:1px solid #ddd;">Threshold</td><td style="padding:6px 12px;border:1px solid #ddd;">${threshold}</td></tr>
+            </table>
+            <p>Please prioritize replenishment to avoid stockouts.</p>
+            <p>Regards,<br/>FreshNest Inventory</p>
+          </div>
+        `,
+        text: `Manual Low Stock Alert: ${product.name} (SKU ${product.sku}) stock: ${product.stock ?? '-'} ${product.unit || 'unit'}. Threshold: ${threshold}.`
+      };
+      sendPromises.push(transporter.sendMail(mailOptions).then(() => {
+        console.log(`📧 Manual low stock alert sent to ${email} for product ${product.sku}`);
+      }).catch(err => {
+        console.error(`❌ Failed to send manual low stock alert to ${email}:`, err);
+      }));
+    }
+
+    const results = await Promise.allSettled(sendPromises);
+    const sent = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.length - sent;
+    return res.json({ success: true, message: `Alerts dispatched. Sent: ${sent}, Failed: ${failed}` });
+  } catch (error) {
+    console.error('sendLowStockAlert error:', error);
+    res.status(500).json({ success: false, error: 'Failed to send low stock alert' });
+  }
+};
+
 // Delete product (soft by default; permanent with ?permanent=true)
 exports.deleteProduct = async (req, res) => {
   try {

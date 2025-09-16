@@ -12,6 +12,7 @@ const orderRoutes = require("./routes/orderRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 const taskRoutes = require("./routes/taskRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const purchaseRoutes = require("./routes/purchaseRoutes");
 const supplierApplicationRoutes = require("./routes/supplierApplicationRoutes");
 
 dotenv.config();
@@ -57,6 +58,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/purchases", purchaseRoutes);
 app.use("/api/supplier-applications", supplierApplicationRoutes);
 
 
