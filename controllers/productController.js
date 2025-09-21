@@ -412,6 +412,7 @@ function normalizePayload(input) {
     brand: normalizedBrand,
     barcode: get('barcode', 'Barcode') ? String(get('barcode', 'Barcode')) : undefined,
     tags: parseTags(get('tags', 'Tags')),
+    expiryDate: get('expiryDate', 'expiry_date', 'ExpiryDate', 'Expiry Date') ? new Date(get('expiryDate', 'expiry_date', 'ExpiryDate', 'Expiry Date')) : undefined,
   };
 
   // Minimal validation
@@ -445,6 +446,7 @@ function normalizePartialPayload(input) {
   }
   if (input.barcode !== undefined) out.barcode = input.barcode ? String(input.barcode) : undefined;
   if (input.tags !== undefined) out.tags = Array.isArray(input.tags) ? input.tags : String(input.tags).split(',').map(s=>s.trim()).filter(Boolean);
+  if (input.expiryDate !== undefined) out.expiryDate = input.expiryDate ? new Date(input.expiryDate) : undefined;
 
   // Validate when present
   if ('price' in out && out.price < 0) throw new Error('Invalid price');

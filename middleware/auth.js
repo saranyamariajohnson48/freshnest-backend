@@ -105,6 +105,9 @@ const optionalAuth = async (req, res, next) => {
 // Admin only middleware
 const adminOnly = [authenticateToken, authorizeRoles('admin', 'Admin')];
 
+// Admin or Staff middleware (for product management)
+const adminOrStaff = [authenticateToken, authorizeRoles('admin', 'Admin', 'staff', 'Staff')];
+
 // Retailer or Admin middleware
 const retailerOrAdmin = [authenticateToken, authorizeRoles('retailer', 'admin', 'Admin')];
 
@@ -116,6 +119,7 @@ module.exports = {
   authorizeRoles,
   optionalAuth,
   adminOnly,
+  adminOrStaff,
   retailerOrAdmin,
   authenticatedUser
 };

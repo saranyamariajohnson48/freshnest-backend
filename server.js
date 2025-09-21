@@ -62,21 +62,36 @@ app.use("/api/purchases", purchaseRoutes);
 app.use("/api/supplier-applications", supplierApplicationRoutes);
 
 
-// Connect to MongoDB Atlas and Start Server
-mongoose
-  .connect(process.env.MONGO_URI, {
-    serverSelectionTimeoutMS: 10000, // Timeout after 10s for Atlas
-    socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
-    maxPoolSize: 10, // Maintain up to 10 socket connections
-  })
-  .then(() => {
-    console.log('✅ Connected to MongoDB Atlas successfully');
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () =>
-      console.log(`🚀 Server started on port ${PORT}`)
-    );
-  })
-  .catch((err) => {
-    console.error('❌ MongoDB Atlas connection error:', err.message);
-    process.exit(1);
-  }); 
+// Connect to MongoDB Atlas with retry and start server
+const startServer = () => {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => console.log(`🚀 Server started on port ${PORT}`));
+};
+
+const connectWithRetry = async (retries = 10, delayMs = 5000) => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await mongoose.connect(process.env.MONGO_URI, {
+        serverSelectionTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+        maxPoolSize: 10,
+      });
+      console.log('✅ Connected to MongoDB Atlas successfully');
+      return true;
+    } catch (err) {
+      console.error(`❌ MongoDB connection attempt ${attempt} failed:`, err.message);
+      if (attempt < retries) {
+        console.log(`⏳ Retrying in ${Math.round(delayMs / 1000)}s...`);
+        await new Promise((res) => setTimeout(res, delayMs));
+      } else {
+        console.error('❌ Exhausted all retries. Continuing to run server without DB connection.');
+        return false;
+      }
+    }
+  }
+};
+
+(async () => {
+  await connectWithRetry();
+  startServer();
+})();

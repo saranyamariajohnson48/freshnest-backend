@@ -16,6 +16,7 @@ const ProductSchema = new mongoose.Schema(
     barcode: { type: String, trim: true },
     brand: { type: String, trim: true },
     tags: { type: [String], default: [] },
+    expiryDate: { type: Date },
   },
   { timestamps: true }
 );
