@@ -1,5 +1,6 @@
 const Task = require("../models/Task");
 const User = require("../models/User");
+const { sendTaskAssignmentEmail } = require("../services/emailService");
 
 function isSupervisorPosition(position = "") {
   const p = String(position || "").toLowerCase();
@@ -49,6 +50,24 @@ exports.createTask = async (req, res) => {
     ]);
 
     res.status(201).json({ success: true, data: populated });
+  
+  // Fire-and-forget: send assignment email to assignee
+  try {
+    const assigneeEmail = populated.assignedTo?.email;
+    if (assigneeEmail) {
+      await sendTaskAssignmentEmail(assigneeEmail, {
+        taskTitle: populated.title,
+        taskDescription: populated.description,
+        dueDate: populated.dueDate,
+        priority: populated.priority,
+        assigneeName: populated.assignedTo?.fullName || 'Team Member',
+        assignerName: populated.assignedBy?.fullName || 'Supervisor',
+        assignerEmail: populated.assignedBy?.email || '',
+      });
+    }
+  } catch (emailErr) {
+    console.error('Task assignment email error:', emailErr);
+  }
   } catch (error) {
     console.error("Create task error:", error);
     res.status(500).json({ success: false, error: "Failed to create task" });

@@ -418,6 +418,91 @@ module.exports = {
   sendOTPEmail,
   sendPasswordResetEmail,
   sendStaffWelcomeEmail,
+  sendTaskAssignmentEmail: async (toEmail, payload) => {
+    try {
+      const transporter = createTransporter();
+      await transporter.verify();
+
+      const frontendBase = process.env.FRONTEND_BASE_URL || 'https://saranyamariajohnson48.github.io/freshnest-frontend';
+      const tasksUrl = `${frontendBase}/#/staff?section=jobcard`;
+
+      const {
+        taskTitle = 'New Task Assigned',
+        taskDescription = '',
+        dueDate = null,
+        priority = 'Medium',
+        assigneeName = 'Team Member',
+        assignerName = 'Supervisor',
+        assignerEmail = '',
+      } = payload || {};
+
+      const subject = `FreshNest – Task Assigned: ${taskTitle}`;
+      const safeDesc = String(taskDescription || '').replace(/\n/g, '<br/>');
+      const dueText = dueDate ? new Date(dueDate).toLocaleDateString() : '—';
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Task Assignment - FreshNest</title>
+        </head>
+        <body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#f4f4f4;">
+          <div style="max-width:600px;margin:0 auto;background-color:#ffffff;padding:20px;border-radius:10px;margin-top:20px;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+            <div style="text-align:center;padding:20px 0;border-bottom:2px solid #004030;">
+              <h1 style="color:#004030;margin:0;font-size:32px;font-weight:bold;">Fresh<span style="color:#437057;">Nest</span></h1>
+              <p style="color:#666;margin:5px 0 0 0;font-size:16px;">Internal Task Notification</p>
+            </div>
+
+            <div style="padding:24px 18px;">
+              <p style="color:#444;font-size:15px;line-height:1.7;">Dear <strong>${assigneeName}</strong>,</p>
+              <p style="color:#444;font-size:15px;line-height:1.7;">You have been assigned a new task by <strong>${assignerName}</strong>.</p>
+
+              <div style="background-color:#f8f9fa;border:1px solid #e5e7eb;border-radius:10px;padding:18px;margin:16px 0;">
+                <div style="margin-bottom:10px;"><strong style="color:#004030;">Title:</strong> ${taskTitle}</div>
+                <div style="margin-bottom:10px;"><strong style="color:#004030;">Priority:</strong> ${priority}</div>
+                <div style="margin-bottom:10px;"><strong style="color:#004030;">Due Date:</strong> ${dueText}</div>
+                <div style="margin-bottom:10px;"><strong style="color:#004030;">Description:</strong><br/>
+                  <span style="color:#444;">${safeDesc || '—'}</span>
+                </div>
+              </div>
+
+              <div style="text-align:center;margin:28px 0;">
+                <a href="${tasksUrl}" style="background-color:#004030;color:#ffffff;padding:12px 18px;text-decoration:none;border-radius:8px;font-weight:bold;display:inline-block;">View Task</a>
+              </div>
+
+              <p style="color:#666;font-size:13px;line-height:1.7;">For any clarification, you may reply to your supervisor${assignerEmail ? ` at <a href=\"mailto:${assignerEmail}\" style=\"color:#004030;text-decoration:none;\">${assignerEmail}</a>` : ''}.</p>
+
+              <p style="color:#004030;font-size:15px;font-weight:bold;margin-top:24px;">Best regards,<br/>FreshNest Operations</p>
+            </div>
+
+            <div style="border-top:1px solid #eee;padding:20px;text-align:center;background-color:#f8f9fa;border-radius:0 0 10px 10px;">
+              <p style="color:#999;font-size:12px;margin:0;">© 2024 FreshNest. All rights reserved. This is an automated email, please do not reply.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const text = `FreshNest – Task Assigned\n\nDear ${assigneeName},\n\nYou have been assigned a new task by ${assignerName}.\n\nTitle: ${taskTitle}\nPriority: ${priority}\nDue Date: ${dueText}\n\nDescription:\n${taskDescription || '—'}\n\nView Task: ${tasksUrl}\n${assignerEmail ? `\nFor queries, contact: ${assignerEmail}` : ''}\n\n© 2024 FreshNest. All rights reserved.`;
+
+      const mailOptions = {
+        from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+        to: toEmail,
+        subject,
+        html,
+        text,
+      };
+
+      const result = await transporter.sendMail(mailOptions);
+      console.log(`✅ Task assignment email sent to ${toEmail} (id: ${result.messageId})`);
+      return true;
+    } catch (err) {
+      console.error('❌ Error sending task assignment email:', err);
+      return false;
+    }
+  },
   sendSupplierOnboardingEmail: async (email, supplierName = 'Supplier') => {
     try {
       const transporter = createTransporter();
