@@ -418,6 +418,109 @@ module.exports = {
   sendOTPEmail,
   sendPasswordResetEmail,
   sendStaffWelcomeEmail,
+  sendSalaryPaymentEmail: async (toEmail, payload) => {
+    try {
+      const transporter = createTransporter();
+      await transporter.verify();
+
+      const {
+        staffName = 'Team Member',
+        month = '',
+        baseSalary = 0,
+        deductions = 0,
+        deductionReason = '',
+        paidAmount = 0,
+        paymentId = '-',
+        paymentMethod = 'Online',
+        paidAt = Date.now(),
+      } = payload || {};
+
+      const subject = `FreshNest – Salary Credited (${month || new Date(paidAt).toLocaleDateString()})`;
+      const hasDeduction = Number(deductions) > 0;
+      const currency = '₹';
+
+      const format = (n) => `${currency}${Number(n || 0).toFixed(2)}`;
+      const safeReason = String(deductionReason || '').replace(/\n/g, '<br/>');
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Salary Payment - FreshNest</title>
+        </head>
+        <body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#f4f4f4;">
+          <div style="max-width:600px;margin:0 auto;background-color:#ffffff;padding:20px;border-radius:12px;margin-top:20px;box-shadow:0 4px 10px rgba(0,0,0,0.08);">
+            <div style="text-align:center;padding:22px 0;border-bottom:2px solid #004030;">
+              <h1 style="color:#004030;margin:0;font-size:30px;font-weight:bold;">Fresh<span style="color:#437057;">Nest</span></h1>
+              <p style="color:#666;margin:6px 0 0 0;font-size:14px;">Salary Credit Confirmation</p>
+            </div>
+
+            <div style="padding:24px 18px;">
+              <p style="color:#444;font-size:15px;line-height:1.7;">Dear <strong>${staffName}</strong>,</p>
+              <p style="color:#444;font-size:15px;line-height:1.7;">Your salary has been credited for <strong>${month || new Date(paidAt).toLocaleDateString()}</strong>. Below are the payment details:</p>
+
+              <div style="background-color:#f8f9fa;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin:12px 0;">
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px;color:#475569;font-size:14px;">
+                  <span>Base Salary</span>
+                  <strong style="color:#0f172a;">${format(baseSalary)}</strong>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px;color:#475569;font-size:14px;">
+                  <span>Deductions</span>
+                  <strong style="color:${hasDeduction ? '#b45309' : '#0f172a'};">${format(deductions)}</strong>
+                </div>
+                <div style="height:1px;background:#e5e7eb;margin:10px 0;"></div>
+                <div style="display:flex;justify-content:space-between;color:#065f46;font-size:15px;">
+                  <span><strong>Net Paid</strong></span>
+                  <strong>${format(paidAmount)}</strong>
+                </div>
+              </div>
+
+              ${hasDeduction ? `
+              <div style="background-color:#fff7ed;border-left:4px solid #f59e0b;padding:12px 14px;border-radius:8px;margin:12px 0;">
+                <div style="color:#92400e;font-weight:bold;margin-bottom:6px;">Deduction Reason</div>
+                <div style="color:#92400e;font-size:14px;line-height:1.6;">${safeReason || '—'}</div>
+              </div>
+              ` : ''}
+
+              <div style="background-color:#eefcf6;border:1px solid #b7f7da;border-radius:10px;padding:14px;margin:16px 0;">
+                <div style="color:#065f46;font-size:14px;">Payment Method: <strong>${paymentMethod}</strong></div>
+                <div style="color:#065f46;font-size:14px;">Payment ID: <strong>${paymentId || '-'}</strong></div>
+                <div style="color:#065f46;font-size:14px;">Paid On: <strong>${new Date(paidAt).toLocaleString()}</strong></div>
+              </div>
+
+              <p style="color:#64748b;font-size:13px;line-height:1.7;">This is a system generated confirmation. For queries, reply to this email or contact HR.</p>
+
+              <p style="color:#004030;font-size:15px;font-weight:bold;margin-top:20px;">Best regards,<br/>FreshNest Payroll</p>
+            </div>
+
+            <div style="border-top:1px solid #eee;padding:18px;text-align:center;background-color:#f8f9fa;border-radius:0 0 12px 12px;">
+              <p style="color:#999;font-size:12px;margin:0;">© 2024 FreshNest. All rights reserved. This is an automated email, please do not reply.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const text = `FreshNest – Salary Credited\n\nDear ${staffName},\n\nSalary credited for ${month || new Date(paidAt).toLocaleDateString()}.\n\nBase Salary: ${format(baseSalary)}\nDeductions: ${format(deductions)}${hasDeduction ? `\nDeduction Reason: ${deductionReason}` : ''}\nNet Paid: ${format(paidAmount)}\n\nPayment Method: ${paymentMethod}\nPayment ID: ${paymentId || '-'}\nPaid On: ${new Date(paidAt).toLocaleString()}\n\nThis is a system generated confirmation. For queries, contact HR.\n\n© 2024 FreshNest.`;
+
+      const mailOptions = {
+        from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+        to: toEmail,
+        subject,
+        html,
+        text,
+      };
+
+      const result = await transporter.sendMail(mailOptions);
+      console.log(`✅ Salary payment email sent to ${toEmail} (id: ${result.messageId})`);
+      return true;
+    } catch (err) {
+      console.error('❌ Error sending salary payment email:', err);
+      return false;
+    }
+  },
   sendTaskAssignmentEmail: async (toEmail, payload) => {
     try {
       const transporter = createTransporter();

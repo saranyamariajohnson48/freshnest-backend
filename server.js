@@ -14,6 +14,7 @@ const taskRoutes = require("./routes/taskRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const purchaseRoutes = require("./routes/purchaseRoutes");
 const supplierApplicationRoutes = require("./routes/supplierApplicationRoutes");
+const salaryRoutes = require("./routes/salaryRoutes");
 
 dotenv.config();
 const app = express();
@@ -60,6 +61,7 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/purchases", purchaseRoutes);
 app.use("/api/supplier-applications", supplierApplicationRoutes);
+app.use("/api/salary", salaryRoutes);
 
 
 // Connect to MongoDB Atlas with retry and start server
