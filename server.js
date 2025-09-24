@@ -24,23 +24,30 @@ app.set('trust proxy', true);
 
 // Configure CORS with more specific options
 const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:5174',
- 'https://freshnest-frontend.vercel.app/' 
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+  "https://freshnest-frontend.vercel.app" // ✅ fixed, no slash
 ];
-if (process.env.FRONTEND_BASE_URL) {
-  allowedOrigins.push(process.env.FRONTEND_BASE_URL);
-}
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
-  exposedHeaders: ['set-cookie'],
-  maxAge: 600 // Cache preflight requests for 10 minutes
-}));
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true); // allow curl/postman
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false); // ❌ don't throw error
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Accept", "Authorization"],
+    exposedHeaders: ["set-cookie"]
+  })
+);
+
+
 
 // Parse JSON bodies
 app.use(express.json());
