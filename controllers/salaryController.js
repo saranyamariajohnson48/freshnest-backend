@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const SalaryPayment = require('../models/SalaryPayment');
+const SalaryNotification = require('../models/SalaryNotification');
 const { sendSalaryPaymentEmail } = require('../services/emailService');
 
 // List staff with salary details
@@ -71,6 +72,31 @@ exports.paySalary = async (req, res) => {
     });
 
     await payment.save();
+
+    // Create salary notification for staff dashboard
+    try {
+      const notification = new SalaryNotification({
+        staffId: staff._id,
+        staffName: staff.fullName || '',
+        staffEmail: staff.email || '',
+        salaryPaymentId: payment._id,
+        month,
+        baseSalary: numericBase,
+        deductions: numericDeduction,
+        deductionReason: numericDeduction > 0 ? deductionReason : '',
+        paidAmount,
+        paymentMethod,
+        paymentId,
+        paidAt: payment.paidAt || Date.now(),
+        createdBy: req.user?._id,
+        message: `Your salary of ₹${paidAmount.toLocaleString()} has been credited for ${month}. ${numericDeduction > 0 ? `Deductions: ₹${numericDeduction.toLocaleString()} (${deductionReason})` : 'No deductions applied.'}`,
+        priority: numericDeduction > 0 ? 'high' : 'normal'
+      });
+      await notification.save();
+      console.log(`✅ Salary notification created for staff: ${staff.fullName} (${staff.email})`);
+    } catch (e) {
+      console.warn('⚠️ Salary notification creation failed (non-blocking):', e?.message || e);
+    }
 
     // Try sending a professional salary payment email (non-blocking)
     try {
@@ -146,11 +172,13 @@ exports.getMySalaryHistory = async (req, res) => {
 
     // Fallback by email in case past records were saved with email only or mismatched ids
     if (total === 0 && staffEmail) {
-      payments = await SalaryPayment.find({ staffEmail })
+      // Use case-insensitive exact match for email to avoid casing mismatches
+      const emailMatch = { $regex: `^${staffEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' };
+      payments = await SalaryPayment.find({ staffEmail: emailMatch })
         .sort({ paidAt: -1 })
         .skip(skip)
         .limit(parseInt(limit));
-      total = await SalaryPayment.countDocuments({ staffEmail });
+      total = await SalaryPayment.countDocuments({ staffEmail: emailMatch });
     }
 
     res.json({ payments, pagination: { current: parseInt(page), pages: Math.ceil(total / parseInt(limit)), total, limit: parseInt(limit) } });
@@ -199,6 +227,95 @@ exports.getRecentSalaryPayments = async (req, res) => {
   } catch (error) {
     console.error('Get recent salary payments error:', error);
     res.status(500).json({ error: 'Failed to fetch recent salary payments' });
+  }
+};
+
+// Get salary notifications for the authenticated staff user
+exports.getMySalaryNotifications = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { page = 1, limit = 20, unreadOnly = false } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const query = { staffId: req.user._id };
+    if (unreadOnly === 'true') {
+      query.isRead = false;
+    }
+
+    const notifications = await SalaryNotification.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate('salaryPaymentId', 'month baseSalary deductions paidAmount paymentMethod')
+      .lean();
+
+    const total = await SalaryNotification.countDocuments(query);
+    const unreadCount = await SalaryNotification.countDocuments({ staffId: req.user._id, isRead: false });
+
+    res.json({ 
+      notifications, 
+      pagination: { 
+        current: parseInt(page), 
+        pages: Math.ceil(total / parseInt(limit)), 
+        total, 
+        limit: parseInt(limit) 
+      },
+      unreadCount
+    });
+  } catch (error) {
+    console.error('Get salary notifications error:', error);
+    res.status(500).json({ error: 'Failed to fetch salary notifications' });
+  }
+};
+
+// Mark salary notification as read
+exports.markSalaryNotificationAsRead = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { notificationId } = req.params;
+
+    const notification = await SalaryNotification.findOneAndUpdate(
+      { _id: notificationId, staffId: req.user._id },
+      { isRead: true, readAt: new Date() },
+      { new: true }
+    );
+
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    res.json({ message: 'Notification marked as read', notification });
+  } catch (error) {
+    console.error('Mark notification as read error:', error);
+    res.status(500).json({ error: 'Failed to mark notification as read' });
+  }
+};
+
+// Mark all salary notifications as read for the authenticated user
+exports.markAllSalaryNotificationsAsRead = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const result = await SalaryNotification.updateMany(
+      { staffId: req.user._id, isRead: false },
+      { isRead: true, readAt: new Date() }
+    );
+
+    res.json({ 
+      message: `${result.modifiedCount} notifications marked as read`,
+      modifiedCount: result.modifiedCount
+    });
+  } catch (error) {
+    console.error('Mark all notifications as read error:', error);
+    res.status(500).json({ error: 'Failed to mark all notifications as read' });
   }
 };
 
