@@ -66,8 +66,19 @@ exports.publicListProducts = async (req, res) => {
       query.supplierId = req.user._id;
     }
 
+    // Filter out expired and expiring products for public users
+    const now = new Date();
+    const fiveDaysFromNow = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
+    
+    // Exclude products that are expired or expiring within 5 days
+    query.$or = [
+      { expiryDate: { $exists: false } }, // Products without expiry date
+      { expiryDate: null }, // Products with null expiry date
+      { expiryDate: { $gt: fiveDaysFromNow } } // Products expiring after 5 days
+    ];
+
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    const projection = { name: 1, sku: 1, category: 1, price: 1, stock: 1, unit: 1, status: 1, updatedAt: 1, createdAt: 1, brand: 1 };
+    const projection = { name: 1, sku: 1, category: 1, price: 1, stock: 1, unit: 1, status: 1, updatedAt: 1, createdAt: 1, brand: 1, expiryDate: 1 };
 
     const [items, total] = await Promise.all([
       Product.find(query, projection).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)),
