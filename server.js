@@ -15,6 +15,7 @@ const paymentRoutes = require("./routes/paymentRoutes");
 const purchaseRoutes = require("./routes/purchaseRoutes");
 const supplierApplicationRoutes = require("./routes/supplierApplicationRoutes");
 const salaryRoutes = require("./routes/salaryRoutes");
+const analyticsRoutes = require("./routes/analyticsRoutes");
 
 dotenv.config();
 const app = express();
@@ -28,29 +29,32 @@ const allowedOrigins = [
   "http://localhost:5174",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
-  "https://freshnest-frontend.vercel.app" // ✅ fixed, no slash
+  "https://freshnest-frontend.vercel.app",
+  "http://192.0.0.2:5173"
 ];
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true); // allow curl/postman
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      return callback(null, false); // ❌ don't throw error
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Accept", "Authorization"],
-    exposedHeaders: ["set-cookie"]
-  })
-);
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true); // allow curl/postman
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["Content-Type", "Accept", "Authorization"],
+  exposedHeaders: ["set-cookie"],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+};
 
+app.use(cors(corsOptions));
 
 
 // Parse JSON bodies
 app.use(express.json());
+
 
 // Health check endpoint - should be before other routes
 app.get('/health', (req, res) => {
@@ -70,6 +74,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/purchases", purchaseRoutes);
 app.use("/api/supplier-applications", supplierApplicationRoutes);
 app.use("/api/salary", salaryRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 
 // Connect to MongoDB Atlas with retry and start server
