@@ -9,7 +9,7 @@ const ProductSchema = new mongoose.Schema(
     price: { type: Number, required: true, min: 0 },
     costPrice: { type: Number, min: 0, default: 0 },
     stock: { type: Number, required: true, min: 0, default: 0 },
-    unit: { type: String, default: 'unit', enum: ['unit', 'kg', 'g', 'lb', 'litre', 'ml', 'pack', 'box', 'dozen', 'bundle'] },
+    unit: { type: String, default: 'unit', enum: ['unit', 'kg', 'g', 'lb', 'litre', 'ml', 'pack', 'box', 'dozen', 'bundle', 'bar'] },
     status: { type: String, default: 'active', enum: ['active', 'inactive'] },
     supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', required: false },
     // Optional fields

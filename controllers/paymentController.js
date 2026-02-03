@@ -4,6 +4,7 @@ const Transaction = require('../models/Transaction');
 const Purchase = require('../models/Purchase');
 const Product = require('../models/Product');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 
 // Initialize Razorpay
 const razorpay = new Razorpay({
@@ -174,6 +175,17 @@ exports.verifyPayment = async (req, res) => {
                 if (typeof p.stock === 'number' && p.stock <= 5 && p.supplierId) {
                   const supplier = await User.findById(p.supplierId).lean();
                   if (supplier?.email) {
+                    // Create internal notification
+                    await Notification.create({
+                      recipient: supplier._id,
+                      title: 'High Priority: Low Stock Alert',
+                      message: `Product ${p.name} (SKU: ${p.sku}) is at ${p.stock} units following a sale. Please restock immediately.`,
+                      type: 'low_stock',
+                      priority: 'high',
+                      relatedId: p._id,
+                      relatedDocModel: 'Product'
+                    }).catch(err => console.error('Internal notification failed (verify path):', err));
+
                     const nodemailer = require('nodemailer');
                     const transporter = nodemailer.createTransport({
                       host: process.env.EMAIL_HOST,
@@ -181,7 +193,7 @@ exports.verifyPayment = async (req, res) => {
                       secure: String(process.env.EMAIL_PORT) === '465',
                       auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
                     });
-                    try { await transporter.verify(); } catch (_) {}
+                    try { await transporter.verify(); } catch (_) { }
                     const mailOptions = {
                       from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
                       to: supplier.email,
@@ -448,9 +460,9 @@ exports.saveTransaction = async (req, res) => {
 
     // Validate required fields
     if (!razorpay_payment_id || !customer || !order) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Missing required transaction data' 
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required transaction data'
       });
     }
 
@@ -532,6 +544,17 @@ exports.saveTransaction = async (req, res) => {
               if (typeof p.stock === 'number' && p.stock <= 5 && p.supplierId) {
                 const supplier = await User.findById(p.supplierId).lean();
                 if (supplier?.email) {
+                  // Create internal notification
+                  await Notification.create({
+                    recipient: supplier._id,
+                    title: 'High Priority: Low Stock Alert',
+                    message: `Product ${p.name} (SKU: ${p.sku}) is at ${p.stock} units following a sale. Please restock immediately.`,
+                    type: 'low_stock',
+                    priority: 'high',
+                    relatedId: p._id,
+                    relatedDocModel: 'Product'
+                  }).catch(err => console.error('Internal notification failed (save path):', err));
+
                   const nodemailer = require('nodemailer');
                   const transporter = nodemailer.createTransport({
                     host: process.env.EMAIL_HOST,
@@ -539,7 +562,7 @@ exports.saveTransaction = async (req, res) => {
                     secure: String(process.env.EMAIL_PORT) === '465',
                     auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
                   });
-                  try { await transporter.verify(); } catch (_) {}
+                  try { await transporter.verify(); } catch (_) { }
                   const mailOptions = {
                     from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
                     to: supplier.email,
@@ -586,9 +609,9 @@ exports.saveTransaction = async (req, res) => {
     });
   } catch (error) {
     console.error('Save transaction error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to save transaction' 
+    res.status(500).json({
+      success: false,
+      error: 'Failed to save transaction'
     });
   }
 };

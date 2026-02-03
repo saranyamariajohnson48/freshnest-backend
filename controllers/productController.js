@@ -1,6 +1,7 @@
 const Product = require('../models/Product');
 const { parse } = require('csv-parse');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const { sendSupplierOnboardingEmail } = require('../services/emailService');
 
 // Create single product
@@ -69,7 +70,7 @@ exports.publicListProducts = async (req, res) => {
     // Filter out expired and expiring products for public users
     const now = new Date();
     const fiveDaysFromNow = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
-    
+
     // Exclude products that are expired or expiring within 5 days
     query.$or = [
       { expiryDate: { $exists: false } }, // Products without expiry date
@@ -128,7 +129,7 @@ exports.updateProduct = async (req, res) => {
           secure: String(process.env.EMAIL_PORT) === '465',
           auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
         });
-        try { await transporter.verify(); } catch (_) {}
+        try { await transporter.verify(); } catch (_) { }
 
         const recipients = new Map(); // email -> displayName
 
@@ -162,6 +163,26 @@ exports.updateProduct = async (req, res) => {
         } else {
           const sendPromises = [];
           for (const [email, supplierName] of recipients.entries()) {
+            // Find the supplier user object to get their ID for internal notification
+            const supplierUser = await User.findOne({ email }).lean();
+
+            if (supplierUser) {
+              // Create internal notification
+              sendPromises.push(Notification.create({
+                recipient: supplierUser._id,
+                title: 'High Priority: Low Stock Alert',
+                message: `Product ${updated.name} (SKU: ${updated.sku}) is at ${updated.stock} units. Please restock immediately.`,
+                type: 'low_stock',
+                priority: 'high',
+                relatedId: updated._id,
+                relatedDocModel: 'Product'
+              }).then(() => {
+                console.log(`🔔 Internal notification created for supplier ${email}`);
+              }).catch(err => {
+                console.error(`❌ Failed to create internal notification for ${email}:`, err);
+              }));
+            }
+
             const mailOptions = {
               from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
               to: email,
@@ -220,7 +241,7 @@ exports.sendLowStockAlert = async (req, res) => {
       secure: String(process.env.EMAIL_PORT) === '465',
       auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
     });
-    try { await transporter.verify(); } catch (_) {}
+    try { await transporter.verify(); } catch (_) { }
 
     const recipients = new Map();
 
@@ -268,6 +289,20 @@ exports.sendLowStockAlert = async (req, res) => {
 
     const sendPromises = [];
     for (const [email, supplierName] of recipients.entries()) {
+      // Create internal notification
+      const supplierUser = await User.findOne({ email }).lean();
+      if (supplierUser) {
+        sendPromises.push(Notification.create({
+          recipient: supplierUser._id,
+          title: 'Manual Low Stock Alert',
+          message: `Manual alert for ${product.name} (SKU: ${product.sku}). Current stock: ${product.stock ?? '-'} units.`,
+          type: 'low_stock',
+          priority: 'high',
+          relatedId: product._id,
+          relatedDocModel: 'Product'
+        }));
+      }
+
       const mailOptions = {
         from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
         to: email,
@@ -456,7 +491,7 @@ function normalizePartialPayload(input) {
     out.brand = input.brand ? normalizeBrandForCategory(category, String(input.brand)) : undefined;
   }
   if (input.barcode !== undefined) out.barcode = input.barcode ? String(input.barcode) : undefined;
-  if (input.tags !== undefined) out.tags = Array.isArray(input.tags) ? input.tags : String(input.tags).split(',').map(s=>s.trim()).filter(Boolean);
+  if (input.tags !== undefined) out.tags = Array.isArray(input.tags) ? input.tags : String(input.tags).split(',').map(s => s.trim()).filter(Boolean);
   if (input.expiryDate !== undefined) out.expiryDate = input.expiryDate ? new Date(input.expiryDate) : undefined;
 
   // Validate when present
